@@ -4,3 +4,6 @@ venv
 .DS_Store
 .env
 app_copy.py
+environment.yml
+/.netrc
+
