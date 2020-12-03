@@ -573,6 +573,9 @@ def display_selected_data(selectedData, slider):
     fig_layout["margin"]["l"] = 50
     return fig
 
-
+###uncomment if debugging locally:
 if __name__ == "__main__":
-    app.run_server(debug=True, host='0.0.0.0', port = 3001)
+    app.run_server(debug=True, host='0.0.0.0', port = 3002)
+
+# if __name__ == '__main__':
+#     app.run_server(debug=True)
