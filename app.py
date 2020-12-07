@@ -143,7 +143,7 @@ app.layout = html.Div(
                         dcc.Dropdown(
                             id="map-dropdown",
                             options=[
-                            {'label': 'LA Neighborboods', 'value': 'OBJECTID'},
+                            # {'label': 'LA Neighborboods', 'value': 'OBJECTID'},
                             {'label': 'Observed ICE VMT', 'value': 'ice_vmt'},
                             {'label': 'Observed EV VMT', 'value': 'ev_vmt'},
                             {'label': 'Observed ICE Stops', 'value': 'ice_stop_count'},
@@ -154,7 +154,7 @@ app.layout = html.Div(
                             {'label': 'Number of Level 2 Plugs', 'value': 'Level 2'},
                             {'label': 'Number of DCFC Plugs', 'value': 'DCFC Level 3'}
                             ],
-                            value='OBJECTID'
+                            value='ice_vmt'
                                 ),
                             ],
                         ),
@@ -168,7 +168,7 @@ app.layout = html.Div(
                         html.Div(
                             id="map-container",
                             children=[
-                                html.H3('Column 1'),
+                                html.H3('Observed data from TNC company operating in Los Angeles'),
                                 html.P(
                                 "Los Angeles map",
                                 id="heatmap-title"
@@ -196,7 +196,7 @@ app.layout = html.Div(
                     html.Div(
                         id='right-column',
                         children=[
-                            html.H3('Column 1'),
+                            html.H3('Observed Metrics by Income Bracket'),
                             html.P(
                                 "Los Angeles bar graphs",
                                 id="chart-title"
@@ -245,9 +245,9 @@ app.layout = html.Div(
                 html.Div(
                     id="lp-map-container",
                     children=[
-                        html.H3('LP'),
+                        html.H3('Optimized charger locations proposed based models from observed TNC data'),
                         html.P(
-                        "Los Angeles LP output map",
+                        "Select the rate of adoption to visualize the proposed infrastructure",
                         id="lp-heatmap-title"
                         ),
                         dcc.Graph(
@@ -273,9 +273,9 @@ app.layout = html.Div(
                 html.Div(
                 id='low-right-column',
                 children=[
-                    html.H3('Column 1'),
+                    html.H3('Optimzed charger station plugs by income bracket'),
                     html.P(
-                        "Los Angeles LP Counts",
+                        "Select the data in the above map using lasso or box selector tool",
                         id="lp-chart-title"
                         ),
                     dcc.Graph(
