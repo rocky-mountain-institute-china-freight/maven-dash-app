@@ -52,8 +52,21 @@ def create_labels(bins):
     return labels
 
 def label_data_by_bin(bins, labels, df, value_to_map):
-    df['bin']=pd.cut(df[value_to_map], bins=bins, include_lowest=True, labels=labels)  
+    df['bin']=pd.cut(df[value_to_map], bins=bins, include_lowest=True, labels=labels, duplicates='raise')  
     return df 
+
+def create_hover_data(df):
+    data = [
+        dict(
+            lat=df["latitude_center"],
+            lon=df["longitude_center"],
+            text=df['hover'],
+            type="scattermapbox",
+            hoverinfo="text",
+            marker=dict(size=5, color="white", opacity=.5),
+        )
+    ]
+    return data
 
 def filter_json_by_bin(geojson, label, df):
     indxs = df.loc[df['bin']==label].index.to_list()
@@ -87,10 +100,10 @@ COlORSCALE = [
     "#11684d",
     "#10523e",
 ]
-
 RATES = [15,25,50]
-
 DEFAULT_OPACITY = 0.5
+VALID_USERNAME_PASSWORD_PAIRS = get_logins(os.path.join(APP_PATH, os.path.join(".secret", "login_credentials.json")))
+HOVER_DATA = create_hover_data(df_ev_vmt)
 
 styles = {
     'pre': {
@@ -100,8 +113,8 @@ styles = {
 }
 mapbox_style = "mapbox://styles/butlerbt/ckhma6w7n12ic19pghqpyanfq"
 mapbox_access_token = "pk.eyJ1IjoiYnV0bGVyYnQiLCJhIjoiY2s2aDJqNzl2MDBqdDNqbWlzdWFqYjZnOCJ9.L4RJNdK2aqr6kHcHZxksXw"
-
-VALID_USERNAME_PASSWORD_PAIRS = get_logins(os.path.join(APP_PATH, os.path.join(".secret", "login_credentials.json")))
+px.set_mapbox_access_token(mapbox_access_token)
+df_ev_vmt['geometry'] = df_ev_vmt['geometry'].simplify(.01)
 
 auth = dash_auth.BasicAuth(
     app,
@@ -173,13 +186,13 @@ app.layout = html.Div(
                                             ),
                                             pitch=0,
                                             zoom=7.5,
-                                        ),
+                                            ),
                                         autosize=True,
+                                        ),
                                     ),
                                 ),
-                            ),
-                        ],
-                    ),
+                            ],
+                        ),
                     html.Div(
                         id='right-column',
                         children=[
@@ -291,6 +304,13 @@ app.layout = html.Div(
     [State("county-choropleth", "figure")],
 )
 def display_map(value, figure):
+    # fig = px.choropleth_mapbox(df_ev_vmt[value],
+    #                        geojson=df_ev_vmt.geometry,
+    #                        locations=df_ev_vmt.index,
+    #                        color=value,
+    #                        center={"lat": 34.0522, "lon": -118.2437},
+    #                        mapbox_style=mapbox_style,
+    #                        zoom=8.5)
     BINS = create_bins(color_scheme=COlORSCALE, df = df_ev_vmt, value_to_map=value)
     labels = create_labels(bins=BINS)
     label_data_by_bin(bins=BINS, labels=labels, df = df_ev_vmt, value_to_map=value)
@@ -436,13 +456,15 @@ def display_selected_data(selectedData, data_dropdown):
 
 @app.callback(
     Output("lp-output-choropleth", "figure"),
-    [Input("slider-container", "value")],
+    [Input("rate-slider", "value")],
     [State("lp-output-choropleth", "figure")],
 )
 def display_lp_map(value, figure):
+    value = "pct"+str(value)+"_plugs"
     BINS = create_bins(color_scheme=COlORSCALE, df = df_ev_vmt, value_to_map=value)
-    labels = create_labels(bins=BINS)
-    label_data_by_bin(bins=BINS, labels=labels, df = df_ev_vmt, value_to_map=value)
+    print(BINS[1:])
+    labels = create_labels(bins=BINS[1:])
+    label_data_by_bin(bins=BINS[1:], labels=labels, df = df_ev_vmt, value_to_map=value)
     cm = dict(zip(BINS, COlORSCALE))
 
     data = [
@@ -526,11 +548,11 @@ def display_lp_map(value, figure):
     Output("selected-data-2", "figure"),
     [
         Input("lp-output-choropleth", "selectedData"),
-        Input("slider-container", "value")
+        Input("rate-slider", "value")
     ],
 )
 def display_selected_data(selectedData, slider):
-    slider="pct"+slider+"_plugs"
+    slider="pct"+str(slider)+"_plugs"
     if selectedData is None:
         return dict(
             data=[dict(x=0, y=0)],
