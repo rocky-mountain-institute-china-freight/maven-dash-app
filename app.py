@@ -147,7 +147,7 @@ app.layout = html.Div(
                             {'label': 'Observed ICE VMT', 'value': 'ice_vmt'},
                             {'label': 'Observed EV VMT', 'value': 'ev_vmt'},
                             {'label': 'Observed ICE Stops', 'value': 'ice_stop_count'},
-                            {'label': 'Observed EV Stops', 'value': 'ev_stop_count'},
+                            {'label': 'Domicile Stops', 'value': 'Domicile Stops'},
                             {'label': 'Median Income', 'value': 'MHI2016'},
                             {'label': 'Population', 'value': 'Pop_16'},
                             {'label': 'Population Density', 'value': 'Pop_Den'},
