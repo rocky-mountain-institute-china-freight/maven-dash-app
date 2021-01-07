@@ -1,3 +1,8 @@
+#Author: Brent Butler 
+#Contact: butlerbt.mg@gmail.com
+#Date: 1/6/2021
+# Purpose: Dash App displaying data and analysis from GM Maven Gig RMI project
+
 import os
 import pathlib
 import re
@@ -6,7 +11,6 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_auth
-
 import pandas as pd
 import geopandas as gpd
 from dash.dependencies import Input, Output, State
@@ -15,9 +19,7 @@ import jenkspy
 import plotly.express as px
 import json
 
-
 # Initialize app
-
 app = dash.Dash(
     __name__,
     meta_tags=[
@@ -26,36 +28,63 @@ app = dash.Dash(
 )
 server = app.server
 
-# Load data
-
+#Set app rooth path name dynamically so that it changes based on where it might be deployed
 APP_PATH = str(pathlib.Path(__file__).parent.resolve())
 
-json_path = os.path.join(APP_PATH, os.path.join("data", "ev_vmt"))
-with open(json_path) as geofile:
-    geojson_layer = json.load(geofile)
-    
-df_ev_vmt = pd.read_pickle(
-    os.path.join(APP_PATH, os.path.join("data", "ev_vmt.pkl"))
-)
-df_ev_vmt = gpd.GeoDataFrame(df_ev_vmt)
 
-with open(os.path.join(APP_PATH, os.path.join("data", "la_geojson.txt"))) as json_file:
-    geo_data = json.load(json_file)
+#Define helper functions for use in dash clickbacks
 
 def create_bins(color_scheme, df, value_to_map):
+    """Creates income bins from data based on commonly used natural breaks algorithim
+
+    Args:
+        color_scheme (list): list of color values to map the bin values to. Usually defined as global variable COLORSCALE. 
+        df (pd.dataframe): df with data to bin
+        value_to_map (string): Name of a column of values that will be binned by income
+
+    Returns:
+        list: list of bin intervals 
+    """
     bins = jenkspy.jenks_breaks(df[value_to_map], nb_class=(len(color_scheme)-1))
     bins = [round(i) for i in bins]
     return bins
 
 def create_labels(bins):
+    """Creates list of labels from bin values
+
+    Args:
+        bins (list): list of bin intervals
+
+    Returns:
+        list: list of labels for displaying in charts
+    """
     labels= labels=[i for i,b in enumerate(bins[1:])]
     return labels
 
 def label_data_by_bin(bins, labels, df, value_to_map):
+    """Maps label values to data in dataframe so that data can then be filtered before being mapped/displayed
+
+    Args:
+        bins (list): list of income bin intervals
+        labels (list): list of labels for dispalying in chart
+        df (pd.DataFrame): df of data to display
+        value_to_map (string): name of column to be mapped/displayed
+
+    Returns:
+        pd.DataFram: original df but with bin labels in column ['bin']
+    """
     df['bin']=pd.cut(df[value_to_map], bins=bins, include_lowest=True, labels=labels, duplicates='raise')  
     return df 
 
 def create_hover_data(df):
+    """Creates data for mouse over hover functionality in map. 
+
+    Args:
+        df (pd.DataFrame): df of data to be displayed
+
+    Returns:
+        dict: dict object mapping data to specific lat long points on the map
+    """
     data = [
         dict(
             lat=df["latitude_center"],
@@ -68,20 +97,34 @@ def create_hover_data(df):
     ]
     return data
 
-def filter_json_by_bin(geojson, label, df):
-    indxs = df.loc[df['bin']==label].index.to_list()
-    list_of_feats = []
-    for feat in geojson['features']:
-        if feat['properties']['poly_id'] in indxs:
-            list_of_feats.append(feat)
-    #return geojson in formatted way
-    return {'type': 'FeatureCollection','features':list_of_feats}
+def load_data_by_jurisdiction(jurisdiction):
+    """Loads in the data to be displayed in the dashboard
+
+    Args:
+        jurisdiction (string): the level of geographic parcels to be displayed. This is used to select which
+        dataframe to load in from the /data/ directory.
+        
+    Returns:
+        pd.DataFrame: DataFrame used in the visuals and graphs
+    """
+    #Create root path app dynamicallys so it will change based on where app is hosted
+    try:
+        df = pd.read_pickle(
+        os.path.join(APP_PATH, os.path.join("data", f"dash_data_{jurisdiction}.pkl")
+                        )
+        )
+        df = gpd.GeoDataFrame(df, crs="epsg:4326")
+        return df
+    except KeyError as ke:
+        pass
+
 
 def get_logins(path):
-    "retrieves valid username:password pairs from secret file"
+    "retrieves valid {username:password} pairs from secret file. Only to be used for development"
     with open(path) as f:
         return json.load(f)
 
+#Global Variables 
 COlORSCALE = [
     "#f2fffb",
     "#bbffeb",
@@ -100,27 +143,30 @@ COlORSCALE = [
     "#11684d",
     "#10523e",
 ]
-RATES = [15,25,50]
+ADOPTION_RATES = [15,25,50] #change this based on LP output scenarios that will be displayed
 DEFAULT_OPACITY = 0.5
 VALID_USERNAME_PASSWORD_PAIRS = get_logins(os.path.join(APP_PATH, os.path.join(".secret", "login_credentials.json")))
-HOVER_DATA = create_hover_data(df_ev_vmt)
 
+#set CSS style sheets
 styles = {
     'pre': {
         'border': 'thin lightgrey solid',
         'overflowX': 'scroll'
     }
 }
+
+#mapbox variables
 mapbox_style = "mapbox://styles/butlerbt/ckhma6w7n12ic19pghqpyanfq"
 mapbox_access_token = "pk.eyJ1IjoiYnV0bGVyYnQiLCJhIjoiY2s2aDJqNzl2MDBqdDNqbWlzdWFqYjZnOCJ9.L4RJNdK2aqr6kHcHZxksXw"
 px.set_mapbox_access_token(mapbox_access_token)
-df_ev_vmt['geometry'] = df_ev_vmt['geometry'].simplify(.01)
 
+#login for use in development - to be removed when launched live
 auth = dash_auth.BasicAuth(
     app,
     VALID_USERNAME_PASSWORD_PAIRS
 )
 
+#html layout of app
 app.layout = html.Div(
     children=[
         html.Div(
@@ -136,14 +182,10 @@ app.layout = html.Div(
                 html.Div(
                     id="dropdown-container",
                     children=[
-                        html.P(
-                            id="'demo-text'",
-                            children="Select the value to be mapped:",
-                        ),
+                        html.H3(children="Select the metric to be displayed:"),
                         dcc.Dropdown(
                             id="map-dropdown",
                             options=[
-                            # {'label': 'LA Neighborboods', 'value': 'OBJECTID'},
                             {'label': 'Observed ICE VMT', 'value': 'ice_vmt'},
                             {'label': 'Observed EV VMT', 'value': 'ev_vmt'},
                             {'label': 'Observed ICE Stops', 'value': 'ice_stop_count'},
@@ -156,6 +198,21 @@ app.layout = html.Div(
                             ],
                             value='ice_vmt'
                                 ),
+                        html.H3(children='Select the level of jurisdiction to display:'),
+                        dcc.Dropdown(
+                            id="jurisdiction-dropdown",
+                            options=[
+                                {'label': 'Neighborhood', 'value':'neighborhood'},
+                                {'label':'City', 'value':'city'},
+                                {'label':'Zip Code', 'value':'zip_code'},
+                                {'label': 'Census Tracts', 'value':'census'},
+                            ],
+                            value='neighborhood'
+                        ),
+                        html.P(
+                            id="demo-text",
+                            children=""
+                        )    
                             ],
                         ),
                     ],
@@ -164,7 +221,6 @@ app.layout = html.Div(
                 className="row",
                     id='top-row',
                     children=[
-                        # Formation bar plots
                         html.Div(
                             id="map-container",
                             children=[
@@ -223,21 +279,22 @@ app.layout = html.Div(
                 html.Div(
                     id="slider-container",
                     children=[
+                        html.H3('Optimzed Fast Charging Infrastructure Needs'),
                         html.P(
                             id="'slider-text'",
-                            children="Drag the slider to the EV Adoption Rate:",
+                            children="Drag the slider to select the EV Adoption Rate:",
                         ),
                         dcc.Slider(
                                 id="rate-slider",
-                                min=min(RATES),
-                                max=max(RATES),
-                                value=min(RATES),
+                                min=min(ADOPTION_RATES),
+                                max=max(ADOPTION_RATES),
+                                value=min(ADOPTION_RATES),
                                 marks={
                                 str(rate): {
                                     "label": str(rate)+'%',
                                     "style": {"color": "#7fafdf"},
                                 }
-                                for rate in RATES
+                                for rate in ADOPTION_RATES
                                     }
                                 ),
                             ],
@@ -245,11 +302,6 @@ app.layout = html.Div(
                 html.Div(
                     id="lp-map-container",
                     children=[
-                        html.H3('Optimized charger locations proposed based models from observed TNC data'),
-                        html.P(
-                        "Select the rate of adoption to visualize the proposed infrastructure",
-                        id="lp-heatmap-title"
-                        ),
                         dcc.Graph(
                         id="lp-output-choropleth",
                         figure=dict(
@@ -296,40 +348,25 @@ app.layout = html.Div(
         ),
     ],
 )
- 
 
+#Dash callbacks
 @app.callback(
     Output("county-choropleth", "figure"),
-    [Input("map-dropdown", "value")],
+    [
+        Input("map-dropdown", "value"),
+        Input("jurisdiction-dropdown", "value")
+        ],
     [State("county-choropleth", "figure")],
 )
-def display_map(value, figure):
-    # fig = px.choropleth_mapbox(df_ev_vmt[value],
-    #                        geojson=df_ev_vmt.geometry,
-    #                        locations=df_ev_vmt.index,
-    #                        color=value,
-    #                        center={"lat": 34.0522, "lon": -118.2437},
-    #                        mapbox_style=mapbox_style,
-    #                        zoom=8.5)
-    BINS = create_bins(color_scheme=COlORSCALE, df = df_ev_vmt, value_to_map=value)
-    labels = create_labels(bins=BINS)
-    label_data_by_bin(bins=BINS, labels=labels, df = df_ev_vmt, value_to_map=value)
-    cm = dict(zip(BINS, COlORSCALE))
-
-    data = [
-        dict(
-            lat=df_ev_vmt["latitude_center"],
-            lon=df_ev_vmt["longitude_center"],
-            text=df_ev_vmt['hover'],
-            type="scattermapbox",
-            hoverinfo="text",
-            marker=dict(size=5, color="white", opacity=.5),
-        )
-    ]
-    if value == 'OBJECTID':
-        annotations = [None]
-    else:
-        annotations = [
+def display_map(value, jurisdiction, figure):
+    """display map based on selection of jurisdiction and metric/value to be displayed"""
+    df = load_data_by_jurisdiction(jurisdiction)
+    bins = create_bins(color_scheme=COlORSCALE, df = df, value_to_map=value)
+    labels = create_labels(bins=bins)
+    label_data_by_bin(bins=bins, labels=labels, df = df, value_to_map=value)
+    cm = dict(zip(bins, COlORSCALE))
+    data = create_hover_data(df)
+    annotations = [
             dict(
                 showarrow=False,
                 align="right",
@@ -340,21 +377,21 @@ def display_map(value, figure):
             )
         ]
     
-        for i, bin in enumerate(reversed(BINS)):
-            color = cm[bin]
-            annotations.append(
-                dict(
-                    arrowcolor=color,
-                    text=bin,
-                    x=0.95,
-                    y=0.85 - (i / 20),
-                    ax=-60,
-                    ay=0,
-                    arrowwidth=5,
-                    arrowhead=0,
-                    font=dict(color="#1f2630"),
-                )
+    for i, bin in enumerate(reversed(bins)):
+        color = cm[bin]
+        annotations.append(
+            dict(
+                arrowcolor=color,
+                text=bin,
+                x=0.95,
+                y=0.85 - (i / 20),
+                ax=-60,
+                ay=0,
+                arrowwidth=5,
+                arrowhead=0,
+                font=dict(color="#1f2630"),
             )
+        )
 
     if "layout" in figure:
         lat = figure["layout"]["mapbox"]["center"]["lat"]
@@ -379,10 +416,10 @@ def display_map(value, figure):
         dragmode="lasso",
     )
     
-    for label, bin in enumerate(BINS):
+    for label, bin in enumerate(bins):
         geo_layer = dict(
             sourcetype="geojson",
-            source=json.loads(df_ev_vmt.loc[df_ev_vmt['bin']==label]['geometry'].to_json()),
+            source=json.loads(df.loc[df['bin']==label]['geometry'].to_json()),
             type="fill",
             color=cm[bin],
             opacity=DEFAULT_OPACITY,
@@ -395,7 +432,9 @@ def display_map(value, figure):
 
 @app.callback(Output("heatmap-title", "children"), 
               [Input("map-dropdown", "value")])
+
 def update_map_title(value):
+    """ Updates title of map based on selected metric """
     if value == 'OBJECTID':
         return 'Los Angeles TNC Data'
     else:
@@ -407,10 +446,14 @@ def update_map_title(value):
     Output("selected-data-1", "figure"),
     [
         Input("county-choropleth", "selectedData"),
-        Input("map-dropdown", "value")
+        Input("map-dropdown", "value"),
+        Input('jurisdiction-dropdown','value')
     ],
 )
-def display_selected_data(selectedData, data_dropdown):
+
+def display_selected_data(selectedData, data_dropdown, jurisdiction):
+    """Produces bar charts from selected data in Map """
+    df = load_data_by_jurisdiction(jurisdiction)
     if selectedData is None:
         return dict(
             data=[dict(x=0, y=0)],
@@ -423,13 +466,12 @@ def display_selected_data(selectedData, data_dropdown):
             ),
         )
     pts = selectedData["points"]
-    tract_nums = [str(pt["text"].split(" ")[2]) for pt in pts]
-    dff = df_ev_vmt[df_ev_vmt["OBJECTID"].isin(tract_nums)]
+    tract_nums = [pt.get('pointIndex') for pt in pts]
+    filtered_df = df.iloc[tract_nums]
 
-    title = data_dropdown
-    counts_by_income = dff.groupby("med_income_cat")[data_dropdown].sum()
+    counts_by_income = filtered_df.groupby("med_income_cat")[data_dropdown].sum()
     fig = counts_by_income.iplot(
-        kind="bar", y=data_dropdown, title=title, asFigure=True
+        kind="bar", y=data_dropdown, title=data_dropdown, asFigure=True
     )
     fig_layout = fig["layout"]
     fig_data = fig["data"]
@@ -456,31 +498,22 @@ def display_selected_data(selectedData, data_dropdown):
 
 @app.callback(
     Output("lp-output-choropleth", "figure"),
-    [Input("rate-slider", "value")],
+    [
+        Input("rate-slider", "value"),
+        Input("jurisdiction-dropdown", "value")
+        ],
     [State("lp-output-choropleth", "figure")],
 )
-def display_lp_map(value, figure):
+def display_lp_map(value, jurisdiction, figure):
+    """ display map of LP model outputs""" 
+    df = load_data_by_jurisdiction(jurisdiction)
     value = "pct"+str(value)+"_plugs"
-    BINS = create_bins(color_scheme=COlORSCALE, df = df_ev_vmt, value_to_map=value)
-    print(BINS[1:])
-    labels = create_labels(bins=BINS[1:])
-    label_data_by_bin(bins=BINS[1:], labels=labels, df = df_ev_vmt, value_to_map=value)
-    cm = dict(zip(BINS, COlORSCALE))
-
-    data = [
-        dict(
-            lat=df_ev_vmt["latitude_center"],
-            lon=df_ev_vmt["longitude_center"],
-            text=df_ev_vmt['hover'],
-            type="scattermapbox",
-            hoverinfo="text",
-            marker=dict(size=5, color="white", opacity=.5),
-        )
-    ]
-    if value == 'OBJECTID':
-        annotations = [None]
-    else:
-        annotations = [
+    bins = create_bins(color_scheme=COlORSCALE, df = df, value_to_map=value)
+    labels = create_labels(bins=bins[1:])
+    label_data_by_bin(bins=bins[1:], labels=labels, df = df, value_to_map=value)
+    cm = dict(zip(bins, COlORSCALE))
+    data = create_hover_data(df)
+    annotations = [
             dict(
                 showarrow=False,
                 align="right",
@@ -491,21 +524,21 @@ def display_lp_map(value, figure):
             )
         ]
     
-        for i, bin in enumerate(reversed(BINS)):
-            color = cm[bin]
-            annotations.append(
-                dict(
-                    arrowcolor=color,
-                    text=bin,
-                    x=0.95,
-                    y=0.85 - (i / 20),
-                    ax=-60,
-                    ay=0,
-                    arrowwidth=5,
-                    arrowhead=0,
-                    font=dict(color="#1f2630"),
-                )
+    for i, bin in enumerate(reversed(bins)):
+        color = cm[bin]
+        annotations.append(
+            dict(
+                arrowcolor=color,
+                text=bin,
+                x=0.95,
+                y=0.85 - (i / 20),
+                ax=-60,
+                ay=0,
+                arrowwidth=5,
+                arrowhead=0,
+                font=dict(color="#1f2630"),
             )
+        )
 
     if "layout" in figure:
         lat = figure["layout"]["mapbox"]["center"]["lat"]
@@ -530,10 +563,10 @@ def display_lp_map(value, figure):
         dragmode="lasso",
     )
     
-    for label, bin in enumerate(BINS):
+    for label, bin in enumerate(bins):
         geo_layer = dict(
             sourcetype="geojson",
-            source=json.loads(df_ev_vmt.loc[df_ev_vmt['bin']==label]['geometry'].to_json()),
+            source=json.loads(df.loc[df['bin']==label]['geometry'].to_json()),
             type="fill",
             color=cm[bin],
             opacity=DEFAULT_OPACITY,
@@ -548,10 +581,13 @@ def display_lp_map(value, figure):
     Output("selected-data-2", "figure"),
     [
         Input("lp-output-choropleth", "selectedData"),
-        Input("rate-slider", "value")
+        Input("rate-slider", "value"),
+        Input('jurisdiction-dropdown','value')
     ],
 )
-def display_selected_data(selectedData, slider):
+def display_selected_data(selectedData, slider, jurisdiction):
+    """ Creates bar charts from selected data from LP Output map""" 
+    df = load_data_by_jurisdiction(jurisdiction)
     slider="pct"+str(slider)+"_plugs"
     if selectedData is None:
         return dict(
@@ -565,13 +601,13 @@ def display_selected_data(selectedData, slider):
             ),
         )
     pts = selectedData["points"]
-    tract_nums = [str(pt["text"].split(" ")[2]) for pt in pts]
-    dff = df_ev_vmt[df_ev_vmt["OBJECTID"].isin(tract_nums)]
+    # tract_nums = [str(pt["text"].split(" ")[2]) for pt in pts]
+    tract_nums = [pt.get('pointIndex') for pt in pts]
+    filtered_df = df[df["OBJECTID"].isin(tract_nums)]
 
-    title = slider
-    counts_by_income = dff.groupby("med_income_cat")[slider].sum()
+    counts_by_income = filtered_df.groupby("med_income_cat")[slider].sum()
     fig = counts_by_income.iplot(
-        kind="bar", y=slider, title=title, asFigure=True
+        kind="bar", y=slider, title=slider, asFigure=True
     )
     fig_layout = fig["layout"]
     fig_data = fig["data"]
@@ -595,9 +631,10 @@ def display_selected_data(selectedData, slider):
     fig_layout["margin"]["l"] = 50
     return fig
 
-###uncomment if debugging locally:
+#uncomment if debugging locally:
 if __name__ == "__main__":
     app.run_server(debug=True, host='0.0.0.0', port = 3002)
-
+    
+#uncomment if deploying:
 # if __name__ == '__main__':
 #     app.run_server(debug=True)
