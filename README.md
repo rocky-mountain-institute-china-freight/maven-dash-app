@@ -49,7 +49,7 @@ pip install gunicorn
 ```
 2. Initialize Heroku, add files to Git, and deploy
 ```
- heroku create maven-dash # change my-dash-app to a unique name
+ heroku create maven-dash # change maven-dash to a unique name
  git add . # add all files to git
  git commit -m 'Initial app boilerplate'
  git push heroku master # deploy code to heroku
